@@ -56,7 +56,7 @@ app.post('/api/posts', upload.single('gambar'), async (req, res) => {
       description: description,
       image_url: imageUrl,
     });
-    
+
     res.status(201).send({
       message: 'Gambar berhasil di-upload dan data tersimpan!',
       data: newImage,
@@ -69,69 +69,82 @@ app.post('/api/posts', upload.single('gambar'), async (req, res) => {
 
 // Route untuk GET all images
 app.get('/api/posts/:id', async (req, res) => {
-    try {
-      const { id } = req.params;
-  
-      const image = await Image.findByPk(id);
-  
-      if (!image) {
-        return res.status(404).json({ message: 'Gambar tidak ditemukan.' });
-      }
-  
-      res.status(200).json(image.image_url);
-  
-    } catch (err) {
-      console.error('Error saat mengambil data:', err);
-      res.status(500).json({ message: 'Terjadi error pada server.' });
+  try {
+    const { id } = req.params;
+
+    const image = await Image.findByPk(id);
+
+    if (!image) {
+      return res.status(404).json({ message: 'Gambar tidak ditemukan.' });
     }
-  });
-  app.delete('/api/posts/:id', async (req, res) => {
-    try {
-      const { id } = req.params;
-  
-      // Cari gambar di database
-      const image = await Image.findByPk(id);
-  
-      if (!image) {
-        return res.status(404).json({ message: 'Gambar tidak ditemukan.' });
-      }
-  
-      // --- LOGIKA PENGHAPUSAN S3 DIMULAI DI SINI ---
-  
-      // 1. Dapatkan URL gambar dari record database
-      //    (Asumsi nama kolomnya adalah 'imageUrl' atau 'image_url')
-      const imageUrl = image.image_url; // Ganti 'imageUrl' jika nama kolomnya berbeda
-  
-      // 2. Ekstrak Key file dari URL.
-      //    Contoh URL: https://bucket-name.s3.region.amazonaws.com/images/file.png
-      //    Key yang kita butuhkan adalah: 'images/file.png'
-      const urlObject = new URL(imageUrl);
-      const fileKey = urlObject.pathname.substring(1); // Menghapus '/' di awal
-  
-      // 3. Buat perintah untuk menghapus file dari S3
-      const deleteParams = {
-        Bucket: process.env.AWS_S3_BUCKET_NAME,
-        Key: fileKey,
-      };
-      const command = new DeleteObjectCommand(deleteParams);
-      
-      // Kirim perintah ke S3
-      await s3Client.send(command);
-      console.log(`File ${fileKey} berhasil dihapus dari S3.`);
-  
-      // --- LOGIKA PENGHAPUSAN S3 SELESAI ---
-  
-  
-      // 4. Hapus record dari database setelah file di S3 berhasil dihapus
-      await image.destroy();
-  
-      res.status(200).json({ message: 'Gambar berhasil dihapus dari database dan S3.' });
-  
-    } catch (err) {
-      console.error('Error saat menghapus data:', err);
-      res.status(500).json({ message: 'Terjadi error pada server.' });
+
+    res.status(200).json(image.image_url);
+
+  } catch (err) {
+    console.error('Error saat mengambil data:', err);
+    res.status(500).json({ message: 'Terjadi error pada server.' });
+  }
+});
+
+app.get('/api/posts', async (req, res) => {
+  try {
+    const images = await Image.findAll()
+
+    res.status(200).json(images);
+
+  } catch (err) {
+    console.error('Error saat mengambil data:', err);
+    res.status(500).json({ message: 'Terjadi error pada server.' });
+  }
+});
+
+app.delete('/api/posts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Cari gambar di database
+    const image = await Image.findByPk(id);
+
+    if (!image) {
+      return res.status(404).json({ message: 'Gambar tidak ditemukan.' });
     }
-  });
+
+    // --- LOGIKA PENGHAPUSAN S3 DIMULAI DI SINI ---
+
+    // 1. Dapatkan URL gambar dari record database
+    //    (Asumsi nama kolomnya adalah 'imageUrl' atau 'image_url')
+    const imageUrl = image.image_url; // Ganti 'imageUrl' jika nama kolomnya berbeda
+
+    // 2. Ekstrak Key file dari URL.
+    //    Contoh URL: https://bucket-name.s3.region.amazonaws.com/images/file.png
+    //    Key yang kita butuhkan adalah: 'images/file.png'
+    const urlObject = new URL(imageUrl);
+    const fileKey = urlObject.pathname.substring(1); // Menghapus '/' di awal
+
+    // 3. Buat perintah untuk menghapus file dari S3
+    const deleteParams = {
+      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Key: fileKey,
+    };
+    const command = new DeleteObjectCommand(deleteParams);
+
+    // Kirim perintah ke S3
+    await s3Client.send(command);
+    console.log(`File ${fileKey} berhasil dihapus dari S3.`);
+
+    // --- LOGIKA PENGHAPUSAN S3 SELESAI ---
+
+
+    // 4. Hapus record dari database setelah file di S3 berhasil dihapus
+    await image.destroy();
+
+    res.status(200).json({ message: 'Gambar berhasil dihapus dari database dan S3.' });
+
+  } catch (err) {
+    console.error('Error saat menghapus data:', err);
+    res.status(500).json({ message: 'Terjadi error pada server.' });
+  }
+});
 
 // --- KONEKSI DAN SINKRONISASI DATABASE ---
 const startServer = async () => {
@@ -142,7 +155,7 @@ const startServer = async () => {
     // Sinkronisasi model dengan database.
     // Ini akan membuat tabel 'images' jika belum ada.
     // Hati-hati menggunakan { force: true } karena akan menghapus tabel yang ada.
-    await sequelize.sync(); 
+    await sequelize.sync();
     console.log('Model berhasil disinkronkan dengan database.');
 
     app.listen(port, () => {
